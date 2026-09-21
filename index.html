@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Breach &amp; Whack</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;700;800&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- shared gradient used by every weapon silhouette (metal sheen) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="wsheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".85"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".6"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app" id="app" data-ctx="menu">
+
+  <!-- ===== ENVIRONMENT: background → mid-ground → floor ===== -->
+  <div class="scene" aria-hidden="true">
+    <div class="sc-wall"></div>
+    <div class="sc-panels"></div>
+    <div class="sc-light l1"></div>
+    <div class="sc-light l2"></div>
+    <div class="sc-strip"></div>
+    <div class="sc-floor"></div>
+    <div class="sc-glow"></div>
+  </div>
+  <canvas id="fx"></canvas>
+  <div class="fx fx-scan"></div>
+  <div class="fx fx-vignette"></div>
+  <div class="fx fx-heat" id="fxHeat" data-heat="0"></div>
+
+  <!-- ===== GAME HUD + BOARD ===== -->
+  <div class="stage" id="stage">
+
+    <header class="hud-top">
+      <div class="cell cell-score">
+        <div class="stat-label">SCORE</div>
+        <div class="stat-value" id="score">0</div>
+      </div>
+      <div class="cell cell-time">
+        <div class="stat-label" id="timeLabel">TIME</div>
+        <div class="stat-value" id="time">1:00</div>
+        <div class="lives" id="lives"></div>
+        <div class="mode-tag" id="modeTag">CLASSIC</div>
+      </div>
+      <div class="cell cell-combo" id="comboBox">
+        <div class="stat-label">COMBO</div>
+        <div class="combo-row">
+          <div class="fire" id="fire"><div class="flame"></div></div>
+          <div class="stat-value stat-combo" id="combo">x0</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="mid">
+      <aside class="side side-left">
+        <div class="brand-mini">BREACH<span>&amp;</span>WHACK</div>
+        <div class="pchip">
+          <div class="pc-top"><span id="pcAvatar"></span><div><b id="pcName">OPERATOR</b><span id="pcLevel">LV 1</span></div></div>
+          <div class="bar"><i id="pcXpFill"></i></div>
+          <div class="pc-xp" id="pcXpText">0 / 400 XP</div>
+          <div class="pc-row"><span>🪙 COINS</span><b id="pcCoins">0</b></div>
+          <div class="pc-row col"><span>NEXT REWARD</span><b id="pcNext">—</b></div>
+        </div>
+        <div class="tracker">
+          <div class="side-label">DAILY MISSION</div>
+          <div class="tr-title" id="mtTitle">—</div>
+          <div class="bar"><i id="mtFill"></i></div>
+          <div class="pc-xp" id="mtText"></div>
+        </div>
+      </aside>
+
+      <section class="board-wrap" id="boardWrap">
+        <div class="board-tilt">
+          <div class="board-shadow"></div>
+          <div class="board">
+            <div class="board-hazard"></div>
+            <div class="board-glow"></div>
+            <div class="marks" id="marks"></div>
+            <div class="grid" id="grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side side-right">
+        <div class="side-label">INTEL</div>
+        <div class="intel">Headshots pay extra. Friendly fire costs 150 and breaks the chain. Hold fire with automatics.</div>
+        <dl class="intel-stats">
+          <div><dt>BEST</dt><dd id="intelBest">0</dd></div>
+          <div><dt>ACCURACY</dt><dd id="intelAcc">--</dd></div>
+          <div><dt>HEADSHOTS</dt><dd id="intelHeads">0</dd></div>
+          <div><dt>KILLS</dt><dd id="intelKills">0</dd></div>
+        </dl>
+        <div class="supply">
+          <div class="side-label">SUPPLY DROP</div>
+          <div class="supply-row"><b>+75 COINS</b><i class="crate"></i></div>
+          <div class="bar gold"><i id="rewardFill"></i></div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="hud-bottom">
+      <div class="slots"><div class="slot-list" id="slotList"></div></div>
+      <div class="instruction-wrap">
+        <div class="instruction"><div class="instruction-reticle"></div><div class="instruction-text" id="instruction">RANGE STANDBY</div></div>
+      </div>
+      <div class="ammo">
+        <div class="stat-label">AMMO</div>
+        <div class="ammo-count" id="ammoCount">30/30</div>
+        <div class="ammo-hint" id="ammoHint">PRESS R</div>
+        <div class="reload-track"><div class="reload-fill" id="reloadFill"></div></div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- foreground weapon (viewmodel) -->
+  <div class="weapon-view" id="weaponView">
+    <div class="wv-art" id="wvArt"></div>
+    <i class="wv-muzzle" id="wvMuzzle"></i>
+    <i class="wv-flash" id="wvFlash"></i>
+  </div>
+
+  <!-- ===== SCREENS (menu, armory, …) are created by ui.js ===== -->
+  <div class="screens" id="screens"></div>
+  <div class="toasts" id="toasts"></div>
+
+  <div class="scope" id="scope"></div>
+  <div class="notif" id="notif" hidden></div>
+  <div class="countdown" id="countdown" hidden></div>
+  <div class="hitmarker" id="hitmarker"><i></i><i></i><i></i><i></i></div>
+
+  <div class="crosshair" id="crosshair">
+    <div class="xh" id="xh"><i class="xb xt"></i><i class="xb xb2"></i><i class="xb xl"></i><i class="xb xr"></i><i class="xdot"></i><i class="xring"></i></div>
+    <div class="muzzle" id="muzzle"></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="art.js"></script>
+<script src="store.js"></script>
+<script src="fx.js"></script>
+<script src="game.js"></script>
+<script src="ui.js"></script>
+<script src="screens.js"></script>
+<script src="screens2.js"></script>
+<script>
+  window.BW.UI.show('menu');   // boot: open the main menu
+</script>
+</body>
+</html>
