@@ -86,7 +86,11 @@
   BW.on('mission', d => { toast('mis', '✔', 'MISSION COMPLETE', d.name + ' · +' + fmt(d.xp) + ' XP'); A.sfx('achieve'); });
   BW.on('unlock', d => {
     if (d.kind === 'agent') toast('unl', '★', 'AGENT UNLOCKED', d.name);
+    else if (d.kind === 'title') toast('unl', '✪', 'TITLE UNLOCKED', d.name);
     else if (d.kind === 'skin') { const [w, s] = d.key.split(':'); toast('unl', '◈', 'SKIN UNLOCKED', BW.weapon(w).name + ' · ' + BW.skin(s).name); }
+  });
+  BW.on('model3d', m => {                            // tell the player when the 3D agent could not be loaded
+    if (m.state === 'failed') toast('unl', '⚠', '3D AGENT NOT LOADED', String(m.error || 'unknown error').slice(0, 90) + ' — using the sprite enemies');
   });
   BW.on('levelup', d => {
     A.sfx('levelup');
@@ -101,7 +105,7 @@
       const dDone = p.missions.daily.filter(r => r.done).length;
       const aDone = Object.keys(p.achievements).length;
       const items = [
-        ['mode', 'PLAY', '', 'primary'], ['armory', 'ARMORY', ''], ['agents', 'AGENTS', ''],
+        ['mode', 'PLAY', '', 'primary'], ['loadout', 'LOADOUT', ''], ['armory', 'ARMORY', ''], ['agents', 'AGENTS', ''],
         ['missions', 'MISSIONS', dDone + '/3 DAILY'], ['achievements', 'ACHIEVEMENTS', aDone + '/' + BW.ACHIEVEMENTS.length],
         ['leaderboard', 'LEADERBOARD', ''], ['profile', 'PROFILE', ''], ['settings', 'SETTINGS', '']
       ];
@@ -113,7 +117,7 @@
           <nav class="menu-list">${items.map(i => `<button class="mbtn ${i[3] || ''}" type="button" data-act="go" data-to="${i[0]}"><span>${i[1]}</span><em>${i[2]}</em></button>`).join('')}</nav>
         </div>
         <aside class="menu-card">
-          <div class="pc-top">${Art.avatar(p.avatar)}<div><b>${esc(p.username)}</b><span>LEVEL ${li.level}</span></div></div>
+          <div class="pc-top">${Art.avatar(p.avatar)}<div><b>${esc(p.username)}</b><span>${BW.title(p.equipment.title).name} · LEVEL ${li.level}</span></div></div>
           ${UI.bar(li.pct)}<div class="pc-xp">${fmt(li.xp)} / ${fmt(li.need)} XP</div>
           <div class="pc-row"><span>🪙 COINS</span><b>${fmt(p.coins)}</b></div>
           <div class="pc-row"><span>HIGH SCORE</span><b>${fmt(p.stats.bestScore)}</b></div>

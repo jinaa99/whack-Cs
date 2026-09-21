@@ -121,7 +121,7 @@
   /* ---------- achievements: {stat} on player.stats must reach {target} ---------- */
   BW.ACHIEVEMENTS = [
     { id: 'firstblood',  name: 'FIRST BLOOD',  desc: 'Get your first kill',                          icon: '◎', stat: 'kills',           target: 1,   xp: 100,  coins: 100 },
-    { id: 'headhunter',  name: 'HEADHUNTER',   desc: '100 headshots',                                icon: '⌖', stat: 'headshots',       target: 100, xp: 400,  coins: 500 },
+    { id: 'headhunter',  name: 'HEADHUNTER',   desc: '100 headshots',                                icon: '⌖', title: 'headhunter', stat: 'headshots',       target: 100, xp: 400,  coins: 500 },
     { id: 'nomercy',     name: 'NO MERCY',     desc: '500 kills',                                    icon: '☠', stat: 'kills',           target: 500, xp: 800,  coins: 1000 },
     { id: 'onetap',      name: 'ONE TAP',      desc: '10 consecutive headshots',                     icon: '✦', stat: 'bestHeadStreak',  target: 10,  xp: 500,  coins: 600 },
     { id: 'deadeye',     name: 'DEAD EYE',     desc: '95% accuracy in a round (20+ shots)',          icon: '◉', stat: 'bestRoundAcc',    target: 95,  xp: 600,  coins: 800 },
@@ -129,6 +129,8 @@
     { id: 'impossible',  name: 'IMPOSSIBLE',   desc: 'Reach x25 combo',                              icon: '♛', stat: 'bestCombo',       target: 25,  xp: 1500, coins: 2000 },
     { id: 'veteran',     name: 'VETERAN',      desc: 'Complete 25 rounds',                           icon: '★', stat: 'games',           target: 25,  xp: 500,  coins: 700 },
     { id: 'survivor',    name: 'SURVIVOR',     desc: 'Survive 90 seconds in Endless',                icon: '⛨', stat: 'bestEndless',     target: 90,  xp: 600,  coins: 800 },
+    { id: 'combo10',     name: 'ON FIRE',      desc: 'Reach x10 combo',                              icon: '♨', stat: 'bestCombo',       target: 10,  xp: 300,  coins: 300 },
+    { id: 'veteran100',  name: 'CENTURION',    desc: 'Complete 100 rounds',                          icon: '★', stat: 'games',           target: 100, xp: 1500, coins: 2500 },
     { id: 'cleanhands',  name: 'CLEAN HANDS',  desc: '40 kills in a round without hitting a hostage', icon: '✚', stat: 'bestCleanRound',  target: 40,  xp: 500,  coins: 700 }
   ];
 
@@ -141,11 +143,14 @@
       { id: 'd_combo', name: 'Reach x10 combo',                stat: 'combo',     kind: 'max', target: 10,   xp: 250, coins: 100 },
       { id: 'd_score', name: 'Score 8,000 in one round',       stat: 'score',     kind: 'max', target: 8000, xp: 400, coins: 150 },
       { id: 'd_games', name: 'Complete 3 rounds',              stat: 'games',     kind: 'sum', target: 3,    xp: 300, coins: 100 },
-      { id: 'd_acc',   name: 'Finish a round with 70% accuracy', stat: 'acc',     kind: 'max', target: 70,   xp: 350, coins: 120 }
+      { id: 'd_acc',   name: 'Finish a round with 70% accuracy', stat: 'acc',     kind: 'max', target: 70,   xp: 350, coins: 120 },
+      { id: 'd_mix',   name: 'Play 3 matches',                 stat: 'games',     kind: 'sum', target: 3,    xp: 300, coins: 100 }
     ],
     weekly: [
       { id: 'w_nomercy', name: 'NO MERCY',     desc: 'Kill 250 enemies',   stat: 'kills',     kind: 'sum', target: 250, xp: 1500, coins: 5000, skin: 'mantis:goldenfang', reward: '5,000 COINS + Golden Fang (Mantis AWP)' },
       { id: 'w_head',    name: 'HEADHUNT WEEK', desc: '100 headshots',      stat: 'headshots', kind: 'sum', target: 100, xp: 1200, coins: 3000, reward: '3,000 COINS' },
+      { id: 'w_acc',     name: 'STEADY HAND',   desc: 'Finish a round with 90% accuracy', stat: 'acc', kind: 'max', target: 90, xp: 1200, coins: 3000, reward: '3,000 COINS' },
+      { id: 'w_score',   name: 'HIGH ROLLER',   desc: 'Score 100,000 total points',       stat: 'totalscore', kind: 'sum', target: 100000, xp: 1200, coins: 3000, reward: '3,000 COINS' },
       { id: 'w_ops',     name: 'OPERATOR',      desc: 'Complete 15 rounds', stat: 'games',     kind: 'sum', target: 15,  xp: 1000, coins: 2500, skin: 'viper:phantom', reward: '2,500 COINS + Phantom (Viper-47)' }
     ]
   };
@@ -184,4 +189,35 @@
       default: return 'Unlocked';
     }
   };
+
+  /* ---------- first-person viewmodel configs (per weapon silhouette) ----------
+     pos/rot/scale are in camera space (z = -1 → 1 unit ≈ screen width / 2).
+     sway.amount = mouse follow, sway.speed = follow smoothing,
+     recoil.position/rotation = kick per shot, recoil.recovery = ms to settle,
+     recoil.camera = camera pitch kick, reload = how the reload motion looks   */
+  BW.VIEWMODELS = {
+    pistol:  { pos: [0.36, -0.36, -1], rot: [0, 0, -0.10], scale: 0.66, sway: { amount: 0.020, speed: 6 },
+               recoil: { position: 0.05, rotation: 0.11, recovery: 90,  camera: 0.004 }, reload: 'tilt',  switchMs: 300 },
+    rifle:   { pos: [0.54, -0.31, -1], rot: [0, 0, -0.13], scale: 0.98, sway: { amount: 0.024, speed: 4.5 },
+               recoil: { position: 0.05, rotation: 0.07, recovery: 120, camera: 0.006 }, reload: 'mag',   switchMs: 380 },
+    smg:     { pos: [0.42, -0.33, -1], rot: [0, 0, -0.12], scale: 0.84, sway: { amount: 0.026, speed: 5.5 },
+               recoil: { position: 0.03, rotation: 0.05, recovery: 70,  camera: 0.003 }, reload: 'mag',   switchMs: 330 },
+    sniper:  { pos: [0.46, -0.29, -1], rot: [0, 0, -0.10], scale: 1.14, sway: { amount: 0.012, speed: 3 },
+               recoil: { position: 0.10, rotation: 0.14, recovery: 260, camera: 0.014 }, reload: 'bolt',  switchMs: 460 },
+    shotgun: { pos: [0.52, -0.31, -1], rot: [0, 0, -0.12], scale: 1.02, sway: { amount: 0.020, speed: 4 },
+               recoil: { position: 0.09, rotation: 0.12, recovery: 220, camera: 0.012 }, reload: 'pump',  switchMs: 420 }
+  };
+  BW.viewModel = w => Object.assign({}, BW.VIEWMODELS[w.art] || BW.VIEWMODELS.rifle, w.vm || {});
+
+  /* ---------- cosmetic titles ---------- */
+  BW.TITLES = [
+    { id: 'recruit',      name: 'RECRUIT',      unlock: { type: 'default' } },
+    { id: 'marksman',     name: 'MARKSMAN',     unlock: { type: 'level', v: 5 } },
+    { id: 'headhunter',   name: 'HEADHUNTER',   unlock: { type: 'achievement', v: 'headhunter' } },
+    { id: 'sharpshooter', name: 'SHARPSHOOTER', unlock: { type: 'achievement', v: 'deadeye' } },
+    { id: 'tactician',    name: 'TACTICIAN',    unlock: { type: 'level', v: 15 } },
+    { id: 'onetap',       name: 'ONE TAP',      unlock: { type: 'achievement', v: 'onetap' } },
+    { id: 'elite',        name: 'ELITE',        unlock: { type: 'level', v: 25 } }
+  ];
+  BW.title = id => BW.TITLES.find(t => t.id === id) || BW.TITLES[0];
 })();

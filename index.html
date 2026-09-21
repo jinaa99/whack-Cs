@@ -25,16 +25,8 @@
 
 <div class="app" id="app" data-ctx="menu">
 
-  <!-- ===== ENVIRONMENT: background → mid-ground → floor ===== -->
-  <div class="scene" aria-hidden="true">
-    <div class="sc-wall"></div>
-    <div class="sc-panels"></div>
-    <div class="sc-light l1"></div>
-    <div class="sc-light l2"></div>
-    <div class="sc-strip"></div>
-    <div class="sc-floor"></div>
-    <div class="sc-glow"></div>
-  </div>
+  <!-- ===== 3D WORLD (Three.js): room, target holes, first-person weapon ===== -->
+  <canvas id="gl" aria-label="3D shooting range"></canvas>
   <canvas id="fx"></canvas>
   <div class="fx fx-scan"></div>
   <div class="fx fx-vignette"></div>
@@ -81,17 +73,7 @@
         </div>
       </aside>
 
-      <section class="board-wrap" id="boardWrap">
-        <div class="board-tilt">
-          <div class="board-shadow"></div>
-          <div class="board">
-            <div class="board-hazard"></div>
-            <div class="board-glow"></div>
-            <div class="marks" id="marks"></div>
-            <div class="grid" id="grid"></div>
-          </div>
-        </div>
-      </section>
+      <div class="mid-spacer"></div>
 
       <aside class="side side-right">
         <div class="side-label">INTEL</div>
@@ -116,6 +98,7 @@
         <div class="instruction"><div class="instruction-reticle"></div><div class="instruction-text" id="instruction">RANGE STANDBY</div></div>
       </div>
       <div class="ammo">
+        <div class="ammo-wpn" id="wpnName">—</div>
         <div class="stat-label">AMMO</div>
         <div class="ammo-count" id="ammoCount">30/30</div>
         <div class="ammo-hint" id="ammoHint">PRESS R</div>
@@ -124,14 +107,10 @@
     </footer>
   </div>
 
-  <!-- foreground weapon (viewmodel) -->
-  <div class="weapon-view" id="weaponView">
-    <div class="wv-art" id="wvArt"></div>
-    <i class="wv-muzzle" id="wvMuzzle"></i>
-    <i class="wv-flash" id="wvFlash"></i>
-  </div>
-
   <!-- ===== SCREENS (menu, armory, …) are created by ui.js ===== -->
+  <div class="pops" id="pops"></div>
+  <div class="nogl" id="noGL" hidden><b>WebGL is required</b><span>This game renders a 3D shooting range. Enable hardware acceleration / WebGL in your browser and reload.</span></div>
+
   <div class="screens" id="screens"></div>
   <div class="toasts" id="toasts"></div>
 
@@ -142,14 +121,20 @@
 
   <div class="crosshair" id="crosshair">
     <div class="xh" id="xh"><i class="xb xt"></i><i class="xb xb2"></i><i class="xb xl"></i><i class="xb xr"></i><i class="xdot"></i><i class="xring"></i></div>
-    <div class="muzzle" id="muzzle"></div>
   </div>
 </div>
 
+<script src="vendor/three.min.js"></script>   <!-- Three.js r149 (MIT), bundled locally so the game also works offline / from file:// -->
+<script src="vendor/gltf-loader.bundle.js"></script>   <!-- official GLTFLoader + SkeletonUtils (r149), bundled as a classic script -->
 <script src="data.js"></script>
+<script src="assets.js"></script>
 <script src="art.js"></script>
+<script src="art3d.js"></script>
 <script src="store.js"></script>
 <script src="fx.js"></script>
+<script src="model3d.js"></script>
+<script src="scene3d.js"></script>
+<script src="viewmodel.js"></script>
 <script src="game.js"></script>
 <script src="ui.js"></script>
 <script src="screens.js"></script>

@@ -19,13 +19,13 @@
     level: 1, xp: 0, coins: 300,
     stats: { kills: 0, headshots: 0, shots: 0, hits: 0, misses: 0, hostages: 0, escaped: 0, bestCombo: 0, bestScore: 0,
              bestHeadStreak: 0, bestRoundAcc: 0, bestEndless: 0, bestCleanRound: 0, playTime: 0, games: 0, fav: {} },
-    inventory: { skins: {}, agents: {} },          // dynamic maps must default to {} (see merge)
-    equipment: { slots: ['viper', 'mantis', 'raven'], skins: {}, agent: 'recon' },
+    inventory: { skins: {}, agents: {}, titles: {} },          // dynamic maps must default to {} (see merge)
+    equipment: { slots: ['viper', 'mantis', 'raven'], skins: {}, agent: 'recon', title: 'recruit' },
     crosshair: Object.assign({ preset: 'tactical' }, BW.CROSSHAIRS[0].c),
     achievements: {},
     missions: { day: '', week: '', daily: [], weekly: null },
     scores: [],
-    settings: { muted: false, shake: true, dust: true, lastMode: 'classic' },
+    settings: { muted: false, shake: true, dust: true, lastMode: 'classic', aim: 'cursor', sens: 1 },
     lastRun: null
   });
 
@@ -51,9 +51,8 @@
   const cleanName = s => String(s || '').replace(/[^\w \-]/g, '').trim().slice(0, 14) || 'OPERATOR';
   BW.cleanName = cleanName;
 
-  // agent unlock rule, evaluated against any profile object (used by validate + Progress)
-  function agentOk(p, a) {
-    const u = a.unlock;
+  // one unlock rule for agents and titles, evaluated against any profile object
+  function ruleOk(p, u) {
     switch (u.type) {
       case 'default': return true;
       case 'level': return p.level >= u.v;
@@ -63,6 +62,7 @@
     }
     return false;
   }
+  const agentOk = (p, a) => ruleOk(p, a.unlock);
 
   function validate(p) {
     const num = (v, a, b, d) => Number.isFinite(v) ? clamp(v, a, b) : d;
@@ -76,6 +76,9 @@
     Object.keys(p.inventory.skins).forEach(k => { if (!BW.skinKeyValid(k)) delete p.inventory.skins[k]; });
     Object.keys(p.inventory.agents).forEach(k => { const a = BW.agent(k); if (!a || !agentOk(p, a)) delete p.inventory.agents[k]; });   // never trust the stored unlock list
     p.inventory.agents.recon = true;
+    Object.keys(p.inventory.titles).forEach(k => { const x = BW.TITLES.find(y => y.id === k); if (!x || !ruleOk(p, x.unlock)) delete p.inventory.titles[k]; });
+    p.inventory.titles.recruit = true;
+    if (!p.inventory.titles[p.equipment.title]) p.equipment.title = 'recruit';
     const eq = p.equipment;
     const slotsOk = eq.slots.length === 3 && new Set(eq.slots).size === 3 &&
       eq.slots.every(id => BW.weapon(id) && p.level >= BW.weapon(id).level);
@@ -89,6 +92,7 @@
     c.size = num(c.size, 0, 30, 10); c.thickness = num(c.thickness, 1, 6, 3);
     c.gap = num(c.gap, 0, 20, 9); c.opacity = num(c.opacity, 0.2, 1, 1);
     if (!/^#[0-9a-f]{6}$/i.test(c.color)) c.color = '#57ff8a';
+    p.settings.aim = p.settings.aim === 'look' ? 'look' : 'cursor'; p.settings.sens = num(p.settings.sens, 0.3, 3, 1);
     if (!p.settings.lastMode || !BW.MODES.some(m => m.id === p.settings.lastMode && !m.soon)) p.settings.lastMode = 'classic';
     p.scores = p.scores.filter(s => isObj(s) && Number.isFinite(s.s) && Number.isFinite(s.t)).slice(-300);
     return p;
@@ -180,7 +184,12 @@
     BW.AGENTS.forEach(a => {
       if (!p.inventory.agents[a.id] && P.agentUnlocked(a)) { p.inventory.agents[a.id] = true; BW.emit('unlock', { kind: 'agent', id: a.id, name: a.name }); }
     });
+    BW.TITLES.forEach(x => {
+      if (!p.inventory.titles[x.id] && ruleOk(p, x.unlock)) { p.inventory.titles[x.id] = true; BW.emit('unlock', { kind: 'title', id: x.id, name: x.name }); }
+    });
   };
+  P.titleUnlocked = t => ruleOk(pl(), t.unlock);
+  P.equipTitle = id => { if (!pl().inventory.titles[id]) return false; pl().equipment.title = id; Store.save(); return true; };
   P.equipAgent = id => { if (!pl().inventory.agents[id]) return false; pl().equipment.agent = id; Store.save(); return true; };
   P.crosshairUnlocked = c => pl().level >= c.level;
   P.setCrosshair = cfg => { Object.assign(pl().crosshair, cfg); Store.save(); };
@@ -279,7 +288,7 @@
     p.scores.push({ s: sum.score, t: Date.now(), m: sum.mode });
     if (p.scores.length > 300) p.scores.shift();
     p.lastRun = { t: Date.now(), mode: sum.mode, score: sum.score, kills: sum.kills, heads: sum.heads, shots: sum.shots, hits: sum.hits, combo: sum.bestCombo, time: Math.round(sum.time) };
-    missionEvent('games', 1); missionEvent('score', sum.score);
+    missionEvent('games', 1); missionEvent('score', sum.score); missionEvent('totalscore', sum.score);
     if (sum.shots >= 20) missionEvent('acc', sum.acc);
     P.syncUnlocks(); P.evaluate();
     Store.saveNow();
@@ -298,16 +307,37 @@
                       weekly: weekStart(now).getTime(), monthly: new Date(now.getFullYear(), now.getMonth(), 1).getTime(), all: 0 }[period] || 0;
       const key = period + ':' + (period === 'daily' ? dayKey(now) : period === 'weekly' ? dayKey(weekStart(now)) : period === 'monthly' ? dayKey(now).slice(0, 7) : 'x');
       const r = rng(hash(key));
-      const rows = NAMES.map((n, i) => ({ name: n, score: Math.round(TOP[period] * (1 - i * 0.085) * (0.95 + r() * 0.1)), you: false }));
+      const rows = NAMES.map((n, i) => ({ name: n, score: Math.round(TOP[period] * (1 - i * 0.085) * (0.95 + r() * 0.1)), level: Math.max(3, 42 - i * 3 + Math.floor(r() * 5)), title: BW.TITLES[Math.min(BW.TITLES.length - 1, Math.max(1, 6 - Math.floor(i / 2)))].name, you: false }));
       const p = pl();
       let best = 0;
       p.scores.forEach(s => { if (s.t >= since && s.s > best) best = s.s; });
       if (period === 'all') best = Math.max(best, p.stats.bestScore);
-      rows.push({ name: p.username, score: best, you: true });
+      rows.push({ name: p.username, score: best, level: p.level, title: BW.title(p.equipment.title).name, you: true });
       rows.sort((a, b) => b.score - a.score);
       rows.forEach((x, i) => { x.rank = i + 1; });
       return rows;
     }
+  };
+
+  /* ---------- facade: the only API the rest of the project should call ---------- */
+  P.getPlayer = () => Store.player;
+  P.recordMatch = sum => P.finishMatch(sum);
+  P.unlock = (kind, id) => {                       // grant an item outright (rewards, missions, debug)
+    const p = pl();
+    if (kind === 'skin') P.grantSkin(id);
+    else if (kind === 'agent' && BW.agent(id)) p.inventory.agents[id] = true;
+    else if (kind === 'title' && BW.TITLES.some(t => t.id === id)) p.inventory.titles[id] = true;
+    Store.save();
+  };
+  P.equip = (kind, a, b) => {                      // equip('weapon', slot, id) | ('skin', weaponId, skinId) | ('agent', id) | ('title', id) | ('crosshair', cfg)
+    switch (kind) {
+      case 'weapon': return P.equipWeapon(a, b);
+      case 'skin': return P.equipSkin(a, b);
+      case 'agent': return P.equipAgent(a);
+      case 'title': return P.equipTitle(a);
+      case 'crosshair': P.setCrosshair(a); return true;
+    }
+    return false;
   };
 
   Store.load();

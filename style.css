@@ -28,7 +28,7 @@ h1, h2, h3, p { margin: 0; }
 .app[data-ctx="game"], .app[data-ctx="game"] * { cursor: none !important; }
 .app[data-ctx="menu"] button:not(:disabled), .app[data-ctx="menu"] [data-act] { cursor: pointer; }
 .app[data-ctx="menu"] .crosshair, .app[data-ctx="menu"] .hitmarker { display: none; }
-.app:not(.in-game) .stage, .app:not(.in-game) .weapon-view, .app:not(.in-game) .scope { display: none; }
+.app:not(.in-game) .stage, .app:not(.in-game) .scope, .app:not(.in-game) .pops { display: none; }
 
 .fx { position: absolute; inset: 0; pointer-events: none; }
 #fx { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
@@ -40,47 +40,6 @@ h1, h2, h3, p { margin: 0; }
 .fx-heat[data-heat="3"] { opacity: 1; background: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(255,60,0,.42) 100%); }
 .app.hurt::after { content: ''; position: fixed; inset: 0; z-index: 27; pointer-events: none; background: radial-gradient(ellipse, transparent 40%, rgba(255,40,40,.45)); animation: fadeOut .26s ease-out forwards; }
 .app.combo-flash::before { content: ''; position: fixed; inset: 0; z-index: 27; pointer-events: none; background: rgba(255,170,60,.12); animation: fadeOut .3s ease-out forwards; }
-
-/* ==========================================================
-   ENVIRONMENT — 3 depth layers: wall (back) · lights/strip (mid) · floor (front)
-   ========================================================== */
-.scene { position: fixed; inset: 0; overflow: hidden; z-index: 0; }
-.sc-wall {
-  position: absolute; inset: -2% -3% 34% -3%;
-  background: linear-gradient(180deg, #1d2024 0%, #14171a 55%, #0d0f11 100%);
-  transform: translateX(calc(var(--px, 0) * -10px)); transition: transform .3s ease-out;
-}
-.sc-panels {
-  position: absolute; inset: 0 0 34% 0; opacity: .9;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 158px, rgba(0,0,0,.6) 158px 160px, rgba(255,255,255,.035) 160px 161px),
-    repeating-linear-gradient(0deg, transparent 0 118px, rgba(0,0,0,.55) 118px 120px, rgba(255,255,255,.03) 120px 121px),
-    radial-gradient(circle at 20px 20px, rgba(255,255,255,.06) 1.5px, transparent 2px) 0 0 / 160px 120px;
-  transform: translateX(calc(var(--px, 0) * -5px)); transition: transform .3s ease-out;
-}
-.sc-light {
-  position: absolute; top: -12%; width: 38vw; height: 86%;
-  background: radial-gradient(ellipse at 50% 0%, rgba(255,138,30,.26), rgba(255,90,20,.06) 45%, transparent 72%);
-  animation: flicker 7s infinite;
-}
-.sc-light.l1 { left: 4%; } .sc-light.l2 { right: 4%; animation-delay: -3s; }
-.sc-strip {
-  position: absolute; left: 0; right: 0; bottom: 33.5%; height: 10px; opacity: .5;
-  background: repeating-linear-gradient(45deg, #f0a022 0 14px, #15171a 14px 28px);
-}
-.sc-floor {
-  position: absolute; left: -35%; right: -35%; bottom: -10%; height: 62%;
-  background:
-    linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px) 0 0 / 96px 96px,
-    linear-gradient(0deg, rgba(255,255,255,.06) 1px, transparent 1px) 0 0 / 96px 96px,
-    linear-gradient(180deg, #181b1e, #0a0b0c);
-  transform: perspective(520px) rotateX(64deg); transform-origin: 50% 100%;
-  -webkit-mask-image: linear-gradient(0deg, #000 25%, transparent 96%); mask-image: linear-gradient(0deg, #000 25%, transparent 96%);
-}
-.sc-glow {   /* floor reflection of the overhead lights */
-  position: absolute; left: 20%; right: 20%; bottom: 8%; height: 26%;
-  background: radial-gradient(ellipse at 50% 50%, rgba(255,120,20,.16), transparent 70%);
-}
 
 /* ==========================================================
    HUD
@@ -163,64 +122,7 @@ h1, h2, h3, p { margin: 0; }
 .reload-track { width: 84px; height: 3px; margin-top: 4px; background: rgba(255,255,255,.08); }
 .reload-fill { height: 100%; width: 0; background: var(--orange); }
 
-/* ==========================================================
-   BOARD — 2.5D slab with depth, rivets, thickness, parallax
-   ========================================================== */
-.board-wrap { position: relative; perspective: 1500px; width: calc(756px * var(--fit)); height: calc(560px * var(--fit)); flex: none; }
-.board-tilt {
-  position: absolute; left: 50%; top: 0; width: 756px; height: 546px; margin-left: -378px;
-  transform-origin: 50% 0; transform-style: preserve-3d;
-  transform: rotateX(13deg) rotateY(var(--ry, 0deg)) scale(calc(var(--fit) * var(--zoom, 1)));
-  transition: transform .25s ease-out;
-}
-.app.scoped .board-tilt { --zoom: 1.08; }
-.board-shadow { position: absolute; left: 4%; right: 4%; bottom: -34px; height: 60px; background: radial-gradient(ellipse, rgba(0,0,0,.75), transparent 70%); filter: blur(4px); }
-.board {
-  position: relative; width: 100%; height: 100%; padding: 26px;
-  background:
-    radial-gradient(circle at 14px 14px, #0c0d0e 3px, #4a4e53 4px, transparent 5px) 0 0 / calc(100% - 0px) 100% no-repeat,
-    repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, #3b3f44, #1f2226 60%, #191b1e);
-  border: 2px solid #101214; border-radius: 4px;
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.08), inset 0 -14px 30px rgba(0,0,0,.35);
-}
-.board::after {   /* front edge thickness */
-  content: ''; position: absolute; left: -2px; right: -2px; bottom: -18px; height: 18px;
-  background: linear-gradient(180deg, #2a2d31, #0b0c0d); border: 2px solid #101214; border-top: 0; border-radius: 0 0 4px 4px;
-}
-.board-hazard { position: absolute; inset: 0; pointer-events: none; opacity: .85;
-  background: repeating-linear-gradient(45deg, #f0a022 0 16px, #15171a 16px 32px);
-  clip-path: polygon(0 0,100% 0,100% 12px,0 12px, 0 calc(100% - 12px),100% calc(100% - 12px),100% 100%,0 100%); }
-.board-glow { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(70% 55% at 50% 0%, rgba(255,214,150,.2), transparent 70%); }
-.marks { position: absolute; inset: 0; pointer-events: none; }
-.mark { position: absolute; width: 11px; height: 11px; margin: -5px 0 0 -5px; border-radius: 50%; background: #0a0a0a; box-shadow: 0 0 0 2px rgba(120,110,95,.5), 0 0 8px rgba(0,0,0,.9); }
-.grid { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 700px; }
-
-/* ---------- hole: plate → rim → wall → pit → (agent) → shade → lip ---------- */
-.hole { position: relative; height: 150px; }
-.hole-plate { position: absolute; left: 0; right: 0; bottom: -8px; height: 112px; border-radius: 12px; border: 1px solid #0d0e10;
-  background: radial-gradient(circle at 10px 10px, #0b0c0d 2px, #55595e 3px, transparent 4px) 0 0 / 100% 100% no-repeat, linear-gradient(180deg, #30343a, #1b1e22);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 6px 10px rgba(0,0,0,.4); }
-.hole-glow { position: absolute; left: 50%; bottom: -2px; width: 118%; height: 120px; margin-left: -59%; opacity: 0; pointer-events: none; transition: opacity .2s;
-  background: radial-gradient(ellipse at 50% 60%, rgba(255,120,20,.4), transparent 68%); }
-.hole.active .hole-glow { opacity: 1; }
-.hole.hostage .hole-glow { background: radial-gradient(ellipse at 50% 60%, rgba(70,150,255,.5), transparent 68%); }
-.hole-rim, .hole-wall, .hole-pit, .hole-lip { position: absolute; left: 50%; transform: translateX(-50%); border-radius: 50%; pointer-events: none; }
-.hole-rim { bottom: 4px; width: 92%; height: 82px; background: linear-gradient(180deg, #62666c, #2c2f33); box-shadow: 0 2px 0 rgba(0,0,0,.6); }
-.hole-wall { bottom: 9px; width: 86%; height: 70px; background: radial-gradient(ellipse at 50% 18%, #33373c 0%, #14161a 50%, #060707 100%); box-shadow: inset 0 6px 12px rgba(0,0,0,.8); }
-.hole-pit { bottom: 12px; width: 70%; height: 46px; background: radial-gradient(ellipse at 50% 35%, #000 0%, #030303 70%, #0d0f11 100%); box-shadow: inset 0 -8px 16px #000; }
-.hole-lip { bottom: 4px; width: 92%; height: 82px; z-index: 8; border-bottom: 7px solid #74787e; border-left: 5px solid #4a4d52; border-right: 5px solid #4a4d52;
-  -webkit-clip-path: inset(48% 0 0 0); clip-path: inset(48% 0 0 0); }
-.hole-clip { position: absolute; left: 50%; bottom: 40px; width: 96%; height: 134px; transform: translateX(-50%); overflow: hidden; pointer-events: none; }
-.hole-shade { position: absolute; left: 50%; bottom: 40px; width: 74%; height: 30px; transform: translateX(-50%); pointer-events: none; z-index: 3;
-  background: linear-gradient(0deg, #040404 5%, rgba(4,4,4,0)); }
-
 /* ---------- popper + agent animations: HIDDEN → RISE → SETTLE → IDLE → RETREAT ---------- */
-.popper { position: absolute; left: 50%; bottom: 0; width: 120px; margin-left: -60px; transform: translateY(140px); opacity: 0;
-  transition: transform .2s cubic-bezier(.5,0,.9,.4), opacity .12s linear .1s; filter: drop-shadow(0 6px 10px rgba(0,0,0,.7)); }
-.popper.up { transform: translateY(0); opacity: 1; animation: rise .34s cubic-bezier(.2,1.3,.4,1) both; }
-.popper.dead { transform: translateY(70px) rotate(6deg); opacity: 0; transition: transform .26s ease-in, opacity .2s linear; }
-.popper.up .agent { animation: idle 2.2s ease-in-out .4s infinite; }
 
 .agent { position: relative; width: 120px; height: 126px; --mask: #4b4a33; --mask2: #2d2c20; --torso: #5a5541; --eye: #d8c9a6; --vest: #3a3a2a; --acc: #b4873f; }
 .agent > * { position: absolute; }
@@ -253,22 +155,8 @@ h1, h2, h3, p { margin: 0; }
 .agent.is-hostage .hostage-tag { display: block; left: 50%; bottom: 14px; margin-left: -46px; width: 92px; text-align: center; padding: 2px 0; z-index: 4;
   font-family: var(--display); font-weight: 800; font-size: 11px; letter-spacing: .12em; color: #0c0d0e; background: #ffd166; animation: blink .7s steps(2) infinite; }
 
-/* invisible hit-boxes (unchanged geometry) */
-.hit { position: absolute; left: 50%; }
-.hit-head { bottom: 64px; width: 78px; height: 60px; margin-left: -39px; z-index: 6; }
-.hit-body { bottom: 22px; width: 104px; height: 44px; margin-left: -52px; z-index: 5; }
-.pop { position: absolute; left: 50%; bottom: 100px; z-index: 9; pointer-events: none; font-family: var(--display); font-weight: 800; letter-spacing: .04em;
-  text-shadow: 0 2px 12px rgba(0,0,0,.9); white-space: nowrap; animation: popUp .95s ease-out forwards; }
 
 /* ---------- foreground weapon ---------- */
-.weapon-view { position: fixed; right: max(1vw, 10px); bottom: 108px; width: min(23vw, 320px); aspect-ratio: 320 / 110; z-index: 30; pointer-events: none;
-  transform: rotate(-7deg); transform-origin: 80% 90%; filter: drop-shadow(0 18px 16px rgba(0,0,0,.65)); }
-.weapon-view.kick { animation: wvKick .14s ease-out; } .weapon-view.switch { animation: wvSwitch .24s ease-out; }
-.wv-art .wsvg { width: 100%; display: block; }
-.wv-muzzle { position: absolute; width: 1px; height: 1px; }
-.wv-flash { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle, rgba(255,240,180,.95), rgba(255,150,30,.5) 40%, transparent 70%); }
-.wv-flash.on { animation: flash .1s ease-out forwards; }
 .wsvg { width: 100%; height: auto; overflow: visible; }
 .wsvg .wb { fill: var(--wc, #4a4d52); } .wsvg .wd { fill: #16181b; } .wsvg .wa { fill: var(--wa, #ff8a00); }
 .wsvg .wp { fill: var(--wa, #ff8a00); opacity: .85; } .wsvg .ws { fill: url(#wsheen); opacity: var(--wm, .3); pointer-events: none; }
@@ -330,7 +218,7 @@ h1, h2, h3, p { margin: 0; }
 @keyframes screenIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 
 /* ---------- responsive (game) ---------- */
-@media (max-width: 1050px) { .side { display: none; } .weapon-view { display: none !important; } }
+@media (max-width: 1050px) { .side { display: none; } }
 @media (max-width: 720px) {
   .stage { padding: 10px; }
   .cell { padding: 6px 12px; min-width: 96px; } .cell-time { min-width: 110px; } .stat-value { font-size: 24px; }
@@ -338,7 +226,7 @@ h1, h2, h3, p { margin: 0; }
   .hud-bottom { grid-template-columns: 1fr 1fr; } .instruction-wrap { display: none; }
   .ammo { padding: 6px 12px; min-width: 100px; }
 }
-@media (prefers-reduced-motion: reduce) { .flame, .sc-light { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .flame { animation: none; } }
 
 /* ==========================================================
    PART 2 — SCREENS
@@ -507,3 +395,48 @@ h1, h2, h3, p { margin: 0; }
 
 @media (max-width: 900px) { .armory { grid-template-columns: 1fr; } .menu { flex-direction: column; align-items: stretch; } .menu-card { width: 100%; } }
 @media (max-width: 520px) { .go-grid { grid-template-columns: repeat(2, 1fr); } .slider { grid-template-columns: 80px 1fr 30px; } }
+
+/* ==========================================================
+   PART 3 — 3D LAYERS + HUD OVER THE WORLD
+   ========================================================== */
+#gl { position: fixed; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; touch-action: none; }
+.app { background: #07080a; }
+.fx-scan { opacity: .12; } .fx-vignette { box-shadow: inset 0 0 220px 40px rgba(0,0,0,.6); }
+
+/* the HUD floats over the canvas and never blocks shots (shots are raycast, not DOM hits) */
+.stage { pointer-events: none; padding: 14px 24px 14px; }
+.stage .slot, .stage button { pointer-events: auto; }
+.mid { align-items: flex-start; justify-content: space-between; }
+.mid-spacer { flex: 1; }
+.side { width: 168px; opacity: .92; padding-top: 4px; }
+.pchip, .tracker, .supply, .intel { background: rgba(8,10,12,.55); backdrop-filter: blur(3px); }
+.brand-mini { text-shadow: 0 2px 12px #000; }
+.ammo-wpn { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .14em; color: var(--orange-soft); margin-bottom: 4px; white-space: nowrap; }
+.slots .slot-list { background: rgba(8,10,12,.6); }
+.cell, .ammo, .instruction { background: rgba(8,10,12,.6); }
+
+/* floating score text (pinned to a 3D hole's screen position) */
+.pops { position: fixed; inset: 0; z-index: 45; pointer-events: none; overflow: hidden; }
+.pop { position: fixed; z-index: 45; pointer-events: none; font-family: var(--display); font-weight: 800; letter-spacing: .04em;
+  text-shadow: 0 2px 12px rgba(0,0,0,.95); white-space: nowrap; animation: popUp .95s ease-out forwards; }
+
+.nogl { position: fixed; inset: 0; z-index: 120; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px;
+  text-align: center; background: rgba(6,7,8,.95); }
+.nogl b { font-family: var(--display); font-size: 28px; letter-spacing: .1em; color: var(--orange); } .nogl span { max-width: 460px; color: #a39d93; font-size: 16px; }
+
+/* menus sit on top of the live 3D range: keep the backdrop light so the room is visible */
+.screen { background: rgba(6,7,8,.5); backdrop-filter: none; }
+.scr-menu { background: linear-gradient(90deg, rgba(6,7,8,.72), rgba(6,7,8,0) 75%); }
+.screen.scr-gameover, .screen.scr-pause { background: rgba(6,7,8,.62); }
+.panel, .adetail, .wcard, .acard, .mode-card, .lbrow, .ach, .loadout, .menu-card, .center-card { backdrop-filter: blur(6px); }
+
+/* aim style: FPS look keeps the crosshair at the exact screen centre */
+.app.aim-look .crosshair { transition: none; }
+
+@media (max-width: 720px) { .stage { padding: 8px; } .ammo-wpn { font-size: 10px; } }
+
+/* loadout / leaderboard / settings additions */
+.wname.sm { font-size: 18px; margin-top: 6px; } .cols .panel .wprev { margin-bottom: 4px; }
+.lbhead, .lbrow { grid-template-columns: 60px 1fr 70px 110px; } .lbhead { display: grid; gap: 10px; padding: 0 16px 6px; font-size: 11px; letter-spacing: .2em; color: var(--dim); }
+.lbrow b small { display: block; font-size: 11px; letter-spacing: .18em; color: var(--orange-soft); font-weight: 600; } .lbrow .lv { color: var(--muted); font-size: 13px; }
+.tog.static { align-items: center; } .seg2 { display: inline-flex; } .seg2 button { padding: 5px 12px; font-size: 12px; letter-spacing: .1em; border: 1px solid var(--line); color: var(--muted); } .seg2 button.on { background: var(--orange); color: #0c0d0e; border-color: var(--orange); }

@@ -56,6 +56,8 @@
   }
 
   const Art = BW.Art = {};
+  Art.shapes = type => SHAPES[type] || SHAPES.rifle;      // used by art3d.js (viewmodel)
+  Art.patternSVG = pattern;
 
   // weapon = weapon def (uses .art), patternKind = skin.p
   Art.weaponSVG = (w, patternKind) => {

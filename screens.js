@@ -97,4 +97,38 @@
     }
   };
   A.aequipagent = d => { P.equipAgent(d.v); UI.refresh(); };
+
+  /* ---------- LOADOUT (quick equip: 3 weapon slots, agent, title, crosshair) ---------- */
+  UI.screens.loadout = {
+    html() {
+      const p = P.player, eq = p.equipment;
+      const slotCards = eq.slots.map((id, i) => {
+        const w = BW.weapon(id), sk = P.equippedSkin(id);
+        const opts = BW.WEAPONS.map(x => {
+          const ok = P.weaponUnlocked(x.id), on = x.id === id;
+          return `<button class="chip ${on ? 'on' : ''}" type="button" ${ok ? `data-act="lo_weapon" data-slot="${i}" data-v="${x.id}"` : 'disabled'}>${x.name}${ok ? '' : ' 🔒' + x.level}</button>`;
+        }).join('');
+        return `<section class="panel"><h3>SLOT ${i + 1} · KEY ${i + 1}</h3>
+          <div class="wprev" style="${Art.skinVars(sk)}">${Art.weaponSVG(w, sk.p)}</div>
+          <div class="wname sm">${w.name} <em>${sk.name}</em></div><div class="chips">${opts}</div></section>`;
+      }).join('');
+      const agents = BW.AGENTS.map(a => { const ok = !!p.inventory.agents[a.id]; return `<button class="chip ${eq.agent === a.id ? 'on' : ''}" type="button" ${ok ? `data-act="lo_agent" data-v="${a.id}"` : 'disabled'}>${a.name}${ok ? '' : ' 🔒'}</button>`; }).join('');
+      const titles = BW.TITLES.map(t => { const ok = !!p.inventory.titles[t.id]; return `<button class="chip ${eq.title === t.id ? 'on' : ''}" type="button" ${ok ? `data-act="lo_title" data-v="${t.id}"` : 'disabled'}>${t.name}${ok ? '' : ' 🔒'}</button>`; }).join('');
+      const xhs = BW.CROSSHAIRS.map(x => { const ok = P.crosshairUnlocked(x); return `<button class="chip ${p.crosshair.preset === x.id ? 'on' : ''}" type="button" ${ok ? `data-act="lo_xh" data-v="${x.id}"` : 'disabled'}>${x.name}${ok ? '' : ' 🔒' + x.level}</button>`; }).join('');
+      return UI.shell('LOADOUT', `<div class="cols">${slotCards}</div>
+        <div class="cols" style="margin-top:14px">
+          <section class="panel"><h3>AGENT</h3><div class="chips">${agents}</div></section>
+          <section class="panel"><h3>TITLE</h3><div class="chips">${titles}</div></section>
+          <section class="panel"><h3>CROSSHAIR</h3><div class="chips">${xhs}</div></section>
+        </div>
+        <div class="btn-row"><button class="btn primary" type="button" data-act="go" data-to="mode">PLAY</button><button class="btn" type="button" data-act="go" data-to="armory">OPEN ARMORY (SKINS)</button></div>`);
+    }
+  };
+  UI.acts.lo_weapon = d => { P.equipWeapon(+d.slot, d.v); UI.refresh(); };
+  UI.acts.lo_agent = d => { P.equipAgent(d.v); UI.refresh(); };
+  UI.acts.lo_title = d => { P.equipTitle(d.v); UI.refresh(); };
+  UI.acts.lo_xh = d => {
+    const x = BW.CROSSHAIRS.find(c => c.id === d.v);
+    if (x && P.crosshairUnlocked(x)) { P.setCrosshair(Object.assign({ preset: x.id }, x.c)); BW.Game.refreshCrosshair(); UI.refresh(); }
+  };
 })();

@@ -2,7 +2,7 @@
    BREACH & WHACK — GAMEPLAY
 
    Core loop (unchanged from the original): game clock → update()
-   → spawn / expire → tryFire() → elementFromPoint hit detection →
+   → spawn / expire → tryFire() → Scene3D.pick (Three.js raycast) hit detection →
    hitEnemy / hitHostage / miss → render() with change-detection.
 
    Scoring
@@ -19,23 +19,22 @@
 (() => {
   'use strict';
   const BW = window.BW, { clamp, fmt } = BW;
-  const P = BW.Progress, Art = BW.Art, FX = BW.FX, A = BW.Audio, CFG = BW.CFG;
+  const P = BW.Progress, Art = BW.Art, FX = BW.FX, A = BW.Audio, CFG = BW.CFG, S3 = BW.Scene3D;
 
   /* ---------- config ---------- */
   const HOLE_COUNT = 9, LEVEL_SECONDS = 12, HOSTAGE_TIME = 1500, HOSTAGE_PENALTY = 150;
   const COMBO_CAP = 10, CHAIN_EVERY = 5, REWARD_DIVISOR = 30, MAX_MARKS = 14;
   const ACC_BONUS_MIN_SHOTS = 10, ACC_BONUS_PER_PCT = 5, DEAD_LINGER = 260, COUNTDOWN = 3;
-  const BOARD_W = 756, BOARD_H = 546;                 // natural board size (before --fit scaling)
   const RARITY_ROLL = [[0.02, 'legendary'], [0.10, 'epic'], [0.30, 'rare']];
 
   /* ---------- DOM ---------- */
   const $ = id => document.getElementById(id);
-  const app = $('app'), stage = $('stage'), grid = $('grid'), marksLayer = $('marks');
-  const crosshair = $('crosshair'), xh = $('xh'), muzzle = $('muzzle'), notifEl = $('notif');
-  const slotList = $('slotList'), weaponView = $('weaponView'), wvArt = $('wvArt'), wvMuzzle = $('wvMuzzle'), wvFlash = $('wvFlash');
+  const app = $('app'), popsEl = $('pops');
+  const crosshair = $('crosshair'), xh = $('xh'), notifEl = $('notif');
+  const slotList = $('slotList');
   const hitmarker = $('hitmarker'), countdownEl = $('countdown');
   const ui = {};
-  ['score', 'time', 'timeLabel', 'lives', 'combo', 'fire', 'comboBox', 'rewardFill', 'ammoCount', 'ammoHint', 'reloadFill', 'instruction',
+  ['score', 'time', 'wpnName', 'timeLabel', 'lives', 'combo', 'fire', 'comboBox', 'rewardFill', 'ammoCount', 'ammoHint', 'reloadFill', 'instruction',
    'intelBest', 'intelAcc', 'intelHeads', 'intelKills', 'pcAvatar', 'pcName', 'pcLevel', 'pcXpFill', 'pcXpText', 'pcCoins', 'pcNext',
    'mtTitle', 'mtFill', 'mtText', 'modeTag', 'fxHeat'].forEach(id => { ui[id] = $(id); });
 
@@ -61,25 +60,8 @@
   const restart = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
 
   /* ---------- build board ---------- */
-  function buildHoles() {
-    const tpl = i => `
-      <div class="hole-plate"></div>
-      <div class="hole-glow"></div>
-      <div class="hole-rim"></div>
-      <div class="hole-wall"></div>
-      <div class="hole-pit"></div>
-      <div class="hole-clip"><div class="popper">${Art.agentHTML(BW.ENEMY_LOOKS[0])}</div></div>
-      <div class="hole-shade"></div>
-      <div class="hit hit-head" data-hole="${i}" data-part="head"></div>
-      <div class="hit hit-body" data-hole="${i}" data-part="body"></div>
-      <div class="hole-lip"></div>`;
-    for (let i = 0; i < HOLE_COUNT; i++) {
-      const el = document.createElement('div');
-      el.className = 'hole';
-      el.innerHTML = tpl(i);
-      grid.appendChild(el);
-      holes.push({ i, el, occ: null, popper: el.querySelector('.popper'), agent: el.querySelector('.agent') });
-    }
+  function buildHoles() {                             // gameplay state only — visuals live in scene3d.js
+    for (let i = 0; i < HOLE_COUNT; i++) holes.push({ i, occ: null, vis: 'hidden' });
   }
 
   function buildSlots() {
@@ -90,14 +72,9 @@
     }).join('');
   }
 
-  function setWeaponView() {
-    const w = W(), sk = P.equippedSkin(w.id), m = Art.muzzle(w.art);
-    wvArt.innerHTML = Art.weaponSVG(w, sk.p);
-    wvArt.style.cssText = Art.skinVars(sk);
-    wvMuzzle.style.left = (m[0] / 320 * 100) + '%';
-    wvMuzzle.style.top = (m[1] / 110 * 100) + '%';
-    wvFlash.style.left = wvMuzzle.style.left; wvFlash.style.top = wvMuzzle.style.top;
-    restart(weaponView, 'switch');
+  function setWeaponView(instant) {
+    const w = W();
+    S3.vm.equip(w, P.equippedSkin(w.id), instant);   // first-person hands + weapon (viewmodel.js)
     applyCrosshair();
   }
 
@@ -106,38 +83,25 @@
   }
 
   /* ---------- fit board to the viewport ---------- */
-  function fit() {
-    const w = innerWidth, h = innerHeight;
-    const aw = w - (w > 1050 ? 2 * 196 : 0) - 32, ah = h - 250;
-    app.style.setProperty('--fit', clamp(Math.min(aw / (BOARD_W * 1.1), ah / BOARD_H), 0.4, 1.15).toFixed(3));
-  }
+  function fit() { S3.resize(); }
 
   /* ---------- effects ---------- */
   function kick(mag) {
     const shake = P.player.settings.shake;
-    const m = (shake ? 1 : 0) * (reducedMotion ? mag * 0.3 : mag), r = () => Math.random() - 0.5;
-    stage.style.transform = m ? `translate(${r() * m}px, ${r() * m}px) rotate(${r() * m * 0.08}deg)` : '';
-    restart(muzzle, 'shot');
-    restart(weaponView, 'kick'); restart(wvFlash, 'on');
-    clearTimeout(kickTimer);
-    kickTimer = setTimeout(() => { stage.style.transform = ''; }, 110);
+    S3.vm.fire();                                    // recoil + muzzle flash on the viewmodel
+    if (shake) S3.shake(reducedMotion ? mag * 0.3 : mag);
+    S3.muzzleFlashLight(1.6);
   }
 
-  function addPop(hole, text, color, size) {
-    const p = document.createElement('div');
+  function addPop(hole, text, color, size) {          // floating text pinned to the 3D hole's screen position
+    const pos = S3.holeScreen(hole.i, 'top'), p = document.createElement('div');
     p.className = 'pop'; p.textContent = text; p.style.color = color; p.style.fontSize = size + 'px';
-    hole.el.appendChild(p);
+    p.style.left = pos.x + 'px'; p.style.top = pos.y + 'px';
+    popsEl.appendChild(p);
     p.addEventListener('animationend', () => p.remove());
     setTimeout(() => p.remove(), 1200);
   }
 
-  function addMark() {
-    const m = document.createElement('div');
-    m.className = 'mark';
-    m.style.left = (8 + Math.random() * 84) + '%'; m.style.top = (8 + Math.random() * 84) + '%';
-    marksLayer.appendChild(m);
-    while (marksLayer.children.length > MAX_MARKS) marksLayer.firstChild.remove();
-  }
 
   function notify(text) {
     notifEl.hidden = true; void notifEl.offsetWidth;
@@ -153,7 +117,7 @@
     hitmarker.classList.add('go');
   }
 
-  function barrelPoint() { const r = wvMuzzle.getBoundingClientRect(); return [r.left, r.top]; }
+  function barrelPoint() { const m = S3.vm.muzzleScreen(); return [m.x, m.y]; }
 
   function hurt() {
     app.classList.add('hurt'); clearTimeout(hurtTimer);
@@ -175,35 +139,35 @@
     return 'common';
   }
 
-  function pickLook() {
-    if (Math.random() < 0.6) return BW.agent(P.player.equipment.agent).look;     // equipped agent = enemy style
-    return BW.ENEMY_LOOKS[Math.floor(Math.random() * BW.ENEMY_LOOKS.length)];
+  function pickLook() {                                 // → { look, agentId }
+    if (Math.random() < 0.6) { const a = BW.agent(P.player.equipment.agent); return { look: a.look, agentId: a.id }; }   // equipped agent = enemy style
+    return { look: BW.ENEMY_LOOKS[Math.floor(Math.random() * BW.ENEMY_LOOKS.length)], agentId: null };
   }
 
   function setOccupant(h, occ) {
     h.occ = occ;
-    if (occ) Art.applyLook(h.agent, occ.look, { hostage: occ.type === 'hostage', rarity: occ.type === 'enemy' ? occ.rarity : '' });
-    paintHole(h);
+    paintHole(h, occ);
   }
 
-  function paintHole(h) {
-    const o = h.occ, up = !!o && !o.dead;
-    h.popper.classList.toggle('up', up);
-    h.popper.classList.toggle('dead', !!o && o.dead);
-    h.el.classList.toggle('active', up);
-    h.el.classList.toggle('hostage', up && o.type === 'hostage');
+  function paintHole(h, fresh) {                      // tell the 3D scene what this hole should show
+    const o = h.occ, want = !o ? 'hidden' : o.dead ? 'dead' : 'up';
+    if (want === h.vis && !fresh) return;
+    h.vis = want;
+    S3.setHole(h.i, want, o && !o.dead ? { look: o.look, hostage: o.type === 'hostage', rarity: o.rarity, agentId: o.agentId } : null);
   }
 
   function kill(h) { h.occ.dead = true; h.occ.deadAt = clock; paintHole(h); }
 
   function clearHoles() {
-    holes.forEach(h => { h.occ = null; paintHole(h); h.el.querySelectorAll('.pop').forEach(p => p.remove()); });
+    holes.forEach(h => { h.occ = null; h.vis = 'hidden'; S3.setHole(h.i, 'hidden', null, true); });
+    popsEl.innerHTML = '';
   }
 
   /* ---------- round flow ---------- */
   const level = () => 1 + Math.floor((state.mode.time ? state.mode.time - state.timeLeft : state.elapsed) / LEVEL_SECONDS);
 
   function start(modeId) {
+    if (!S3.ok) { const m = $('noGL'); if (m) m.hidden = false; return; }
     const mode = BW.MODES.find(m => m.id === modeId && !m.soon) || BW.MODES[0];
     P.ensureMissions();
     const slots = P.player.equipment.slots.slice();
@@ -217,10 +181,12 @@
       countdown: COUNTDOWN + 0.999, lastCount: 0
     });
     clock = 0; pointer.held = false;
-    clearHoles(); marksLayer.innerHTML = '';
+    clearHoles(); S3.clearDecals();
+    S3.setMode('game');
     app.classList.add('in-game'); app.dataset.ctx = 'game';
     if (BW.UI) BW.UI.hideAll();
-    fit(); buildSlots(); setWeaponView();
+    fit(); buildSlots(); setWeaponView(true);
+    state.slots.forEach(id => Art.viewmodelCanvas(BW.weapon(id), P.equippedSkin(id)));   // warm the viewmodel cache
     ui.pcAvatar.innerHTML = Art.avatar(P.player.avatar);
     P.player.settings.lastMode = mode.id; P.save();
     A.sfx('start');
@@ -245,7 +211,7 @@
 
   function pause() {
     if (state.phase !== 'play') return;
-    state.phase = 'paused'; pointer.held = false;
+    state.phase = 'paused'; pointer.held = false; releaseLook();
     app.dataset.ctx = 'menu';
     BW.UI.show('pause');
   }
@@ -256,13 +222,13 @@
   }
   function quit() {
     state.phase = 'menu'; pointer.held = false;
-    clearHoles(); countdownEl.hidden = true;
+    clearHoles(); countdownEl.hidden = true; S3.setMode('menu'); releaseLook();
     app.classList.remove('in-game', 'scoped'); app.dataset.ctx = 'menu';
     BW.UI.show('menu');
   }
 
   function endRound() {
-    state.phase = 'over'; pointer.held = false;
+    state.phase = 'over'; pointer.held = false; releaseLook();
     app.dataset.ctx = 'menu';
     clearHoles();
     const prevBest = P.player.stats.bestScore;
@@ -331,16 +297,17 @@
     const bp = barrelPoint(); FX.smoke(bp[0], bp[1], w.art === 'sniper' || w.art === 'shotgun' ? 3 : 1);
     if (state.ammo[w.id] <= 0) startReload();
 
-    // every pellet is a separate hit-test (1 for normal guns)
+    // every pellet is a separate raycast into the 3D scene (1 for normal guns)
     const found = new Map();
+    let firstPick = null;
     for (let i = 0; i < (w.pellets || 1); i++) {
       const [px, py] = spreadPoint(x, y, w.spread);
-      const el = document.elementFromPoint(px, py);
-      const part = el && el.closest && el.closest('[data-part]');
-      if (part) {
-        const idx = +part.dataset.hole, head = part.dataset.part === 'head', prev = found.get(idx);
-        found.set(idx, { head: (prev && prev.head) || head, x: px, y: py });
-      } else if (w.pellets) FX.impact(px, py);
+      const pk = S3.pick(px, py);                      // → { hole, part:'head'|'body' } or { miss:true }
+      if (!firstPick) firstPick = pk;
+      if (!pk.miss) {
+        const prev = found.get(pk.hole), head = pk.part === 'head';
+        found.set(pk.hole, { head: (prev && prev.head) || head, x: px, y: py });
+      } else if (w.pellets) { FX.impact(px, py); S3.impact(pk); }
     }
 
     let hitAny = false, enemyHit = false;
@@ -353,14 +320,14 @@
       hitEnemy(h, f.head, w, f);
     });
     if (enemyHit) { state.hits++; P.track('hit'); }
-    if (!hitAny) miss(x, y);
+    if (!hitAny) miss(x, y, firstPick);
   }
 
-  function miss(x, y) {
+  function miss(x, y, pk) {
     state.combo = 0; state.headStreak = 0;
     P.track('miss');
     A.sfx('miss');
-    addMark(); FX.impact(x, y);
+    FX.impact(x, y); S3.impact(pk);                   // dust + a bullet-hole decal on the wall
   }
 
   function hitHostage(h, f) {
@@ -447,7 +414,7 @@
     if (lv !== state.level) { state.level = lv; notify('LEVEL ' + lv); }
 
     finishReload();
-    if (pointer.held && W().auto) tryFire(pointer.x, pointer.y);
+    if (pointer.held && W().auto) { const a = aimPoint(); tryFire(a.x, a.y); }
 
     const mode = state.mode;
     for (const h of holes) {                           // dead linger, escapes
@@ -470,10 +437,10 @@
       const free = holes.filter(h => !h.occ);
       if (free.length) {
         const h = free[Math.floor(Math.random() * free.length)];
-        const hostage = Math.random() < mode.hostageChance;
+        const hostage = Math.random() < mode.hostageChance, pl = hostage ? { look: BW.HOSTAGE_LOOK, agentId: null } : pickLook();
         setOccupant(h, {
           type: hostage ? 'hostage' : 'enemy',
-          look: hostage ? BW.HOSTAGE_LOOK : pickLook(),
+          look: pl.look, agentId: pl.agentId,
           rarity: rollRarity(),
           t0: clock,
           dur: hostage ? HOSTAGE_TIME : Math.max(520, 2100 - lv * 170) * mode.durMul,
@@ -507,6 +474,8 @@
     setW(ui.rewardFill, Math.min(100, s.reward) + '%');
 
     const reloading = !!s.reloadUntil;
+    setText(ui.wpnName, w.name.toUpperCase() + ' · ' + P.equippedSkin(w.id).name);
+    S3.vm.reload(reloading ? Math.min(1, 1 - (s.reloadUntil - clock) / BW.weapon(s.reloadWeapon).reload) : -1);   // visual only
     setText(ui.ammoCount, reloading ? '· ·' : s.ammo[w.id] + '/' + w.mag);
     toggle(ui.ammoCount, 'reloading', reloading);
     toggle(ui.ammoCount, 'low', !reloading && s.ammo[w.id] <= 2);
@@ -541,13 +510,23 @@
   }
 
   /* ---------- input ---------- */
+  /* aim style: 'cursor' = crosshair follows the mouse (default, works with touch)
+                 'look'   = FPS mouse-look via Pointer Lock, crosshair fixed at screen centre */
+  const aimMode = () => (P.player.settings.aim === 'look' ? 'look' : 'cursor');
+  const aimPoint = () => (aimMode() === 'look' && S3.ok ? S3.aimCenter() : pointer);
+  function placeCrosshair() {
+    const a = aimPoint();
+    crosshair.style.transform = `translate(${a.x}px, ${a.y}px)`;
+    app.style.setProperty('--mx', a.x + 'px'); app.style.setProperty('--my', a.y + 'px');
+  }
+  function releaseLook() { if (document.pointerLockElement) document.exitPointerLock(); }
+  function applyAimMode() { S3.setAimMode(aimMode()); placeCrosshair(); if (aimMode() !== 'look') releaseLook(); }
+
   function movePointer(e) {
-    pointer.x = e.clientX; pointer.y = e.clientY;
-    crosshair.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
-    app.style.setProperty('--mx', e.clientX + 'px');
-    app.style.setProperty('--my', e.clientY + 'px');
-    app.style.setProperty('--ry', ((e.clientX / innerWidth - 0.5) * 5).toFixed(2) + 'deg');
-    app.style.setProperty('--px', ((e.clientX / innerWidth - 0.5) * 2).toFixed(3));
+    if (document.pointerLockElement) { S3.lookDelta(e.movementX || 0, e.movementY || 0, (P.player.settings.sens || 1) * 0.0022); }
+    else { pointer.x = e.clientX; pointer.y = e.clientY; }
+    placeCrosshair();
+    S3.pointer((pointer.x / innerWidth - 0.5) * 2, (pointer.y / innerHeight - 0.5) * 2);     // drives weapon sway + camera parallax
   }
 
   app.addEventListener('pointermove', movePointer);
@@ -556,8 +535,11 @@
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     if (e.target.closest('button, .screen, input, select')) return;   // UI, not a shot
     if (state.phase !== 'play') return;
+    if (aimMode() === 'look' && !document.pointerLockElement && S3.ok) {          // first click captures the mouse
+      try { const r = document.getElementById('gl').requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* fall through to a normal shot */ }
+    }
     pointer.held = true;
-    tryFire(e.clientX, e.clientY);
+    const a = aimPoint(); tryFire(a.x, a.y);
   });
   addEventListener('pointerup', () => { pointer.held = false; });
   addEventListener('pointercancel', () => { pointer.held = false; });
@@ -583,7 +565,8 @@
   });
 
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-  addEventListener('resize', fit);
+  document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && state.phase === 'play' && aimMode() === 'look') pause(); });
+  addEventListener('resize', () => { fit(); placeCrosshair(); });
 
   /* ---------- main loop ---------- */
   let last = performance.now();
@@ -592,6 +575,7 @@
     last = now;
     if (state.phase === 'countdown') tickCountdown(dt);
     else if (state.phase === 'play') update(dt);
+    S3.render(dt / 1000);                              // world + viewmodel (also animates the menu backdrop)
     FX.step(dt / 1000); FX.draw();
     if (app.classList.contains('in-game')) render();
     requestAnimationFrame(frame);
@@ -602,14 +586,18 @@
     start, pause, resume, quit,
     phase: () => state.phase,
     refreshCrosshair: applyCrosshair,
+    applyAim: applyAimMode,
+    webgl: () => S3.ok,
+    debugHoles: () => holes.map(h => (h.occ && !h.occ.dead ? h.occ.type : null)),   // for automated tests
     fit
   };
 
   /* ---------- init ---------- */
   buildHoles();
   FX.init($('fx'));
-  crosshair.style.transform = `translate(${pointer.x}px, ${pointer.y}px)`;
+  const glOk = S3.init($('gl'));
+  if (!glOk) { const m = $('noGL'); if (m) m.hidden = false; }
+  applyAimMode();
   applyCrosshair();
-  fit();
   requestAnimationFrame(frame);
 })();

@@ -52,8 +52,8 @@
     html() {
       const tabs = BW.Leaderboard.PERIODS.map(t => `<button class="tab ${UI.state.lb === t[0] ? 'on' : ''}" type="button" data-act="lbperiod" data-v="${t[0]}">${t[1]}</button>`).join('');
       const rows = BW.Leaderboard.get(UI.state.lb).map(r =>
-        `<div class="lbrow ${r.you ? 'you' : ''}"><span class="rk">#${r.rank}</span><b>${esc(r.name)}${r.you ? ' <em>YOU</em>' : ''}</b><span class="sc">${r.score ? fmt(r.score) : '—'}</span></div>`).join('');
-      return UI.shell('GLOBAL LEADERBOARD', `<div class="tabs">${tabs}</div><div class="lb">${rows}</div>
+        `<div class="lbrow ${r.you ? 'you' : ''}"><span class="rk">#${r.rank}</span><b>${esc(r.name)}${r.you ? ' <em>YOU</em>' : ''}<small>${esc(r.title)}</small></b><span class="lv">LV ${r.level}</span><span class="sc">${r.score ? fmt(r.score) : '—'}</span></div>`).join('');
+      return UI.shell('GLOBAL LEADERBOARD', `<div class="tabs">${tabs}</div><div class="lbhead"><span>RANK</span><span>USERNAME</span><span>LEVEL</span><span>SCORE</span></div><div class="lb">${rows}</div>
         <p class="lead small">Local leaderboard: rivals are simulated. The data layer (BW.Leaderboard.get) is ready to be pointed at a server.</p>`);
     }
   };
@@ -74,7 +74,7 @@
         <section class="panel prof">
           <div class="prof-top"><div class="bigav">${Art.avatar(p.avatar)}</div><div>
             <input class="nameinput" maxlength="14" value="${esc(p.username)}" data-in="name" aria-label="Username">
-            <div class="prof-lv">LEVEL ${li.level}</div></div></div>
+            <div class="prof-lv">${BW.title(p.equipment.title).name} · LEVEL ${li.level}</div></div></div>
           ${UI.bar(li.pct)}<div class="pc-xp">${fmt(li.xp)} / ${fmt(li.need)} XP</div>
           <div class="pc-row"><span>🪙 COINS</span><b>${fmt(p.coins)}</b></div>
           <div class="avs">${avs}</div>
@@ -86,6 +86,7 @@
         </div></section>
         <section class="panel"><h3>EQUIPMENT</h3>${guns}
           <div class="eqrow"><span>AGENT</span><b>${ag.name}</b></div>
+          <div class="eqrow"><span>TITLE</span><b>${BW.title(p.equipment.title).name}</b></div>
           <div class="eqrow"><span>CROSSHAIR</span><b>${esc(p.crosshair.preset.toUpperCase())}</b></div></section>
       </div>`);
     }
@@ -113,7 +114,9 @@
         return `<label class="slider"><span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-in="xh" data-k="${k}"><b data-v="${k}">${v}</b></label>`;
       }).join('');
       return UI.shell('SETTINGS', `<div class="cols">
-        <section class="panel"><h3>GAME</h3>${tog('muted', 'MUTE SOUND')}${tog('shake', 'SCREEN SHAKE')}${tog('dust', 'AMBIENT PARTICLES')}
+        <section class="panel"><h3>GAME</h3><div class="tog static"><span>AIM STYLE</span><span class="seg2"><button type="button" class="${s.aim !== 'look' ? 'on' : ''}" data-act="aimmode" data-v="cursor">FREE CURSOR</button><button type="button" class="${s.aim === 'look' ? 'on' : ''}" data-act="aimmode" data-v="look">FPS LOOK</button></span></div>
+          <label class="slider"><span>LOOK SENS</span><input type="range" min="0.3" max="3" step="0.1" value="${s.sens}" data-in="sens"><b data-v="sens">${(+s.sens).toFixed(1)}</b></label>
+          ${tog('muted', 'MUTE SOUND')}${tog('shake', 'SCREEN SHAKE')}${tog('dust', 'AMBIENT PARTICLES')}
           <button class="btn danger" type="button" data-act="reset">${resetArmed ? 'CLICK AGAIN TO ERASE EVERYTHING' : 'RESET PROGRESS'}</button></section>
         <section class="panel"><h3>CROSSHAIR</h3>
           <div class="xhprev" id="xhPrevBox"><div class="xh" id="xhPrev">${Art.XH_HTML}</div></div>
@@ -143,6 +146,11 @@
     if (lab) lab.textContent = k === 'opacity' ? Math.round(c.opacity * 100) : c[k];
     Art.applyXh(document.getElementById('xhPrev'), c, 0);
     BW.Game.refreshCrosshair();
+  };
+  A.aimmode = d => { P.player.settings.aim = d.v; Store.save(); BW.Game.applyAim(); UI.refresh(); };
+  UI.inputs.sens = t => {
+    P.player.settings.sens = +t.value; Store.save();
+    const lab = document.querySelector('b[data-v="sens"]'); if (lab) lab.textContent = (+t.value).toFixed(1);
   };
   A.reset = () => {
     if (!resetArmed) { resetArmed = true; UI.refresh(); setTimeout(() => { if (resetArmed) { resetArmed = false; if (UI.cur === 'settings') UI.refresh(); } }, 3500); return; }
